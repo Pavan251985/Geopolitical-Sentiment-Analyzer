@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Geopolitical AI Analyzer</title>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #f4f4f9; padding: 40px; }
+        .container { max-width: 800px; margin: auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0px 4px 10px rgba(0,0,0,0.1); }
+        h1 { text-align: center; color: #333; }
+        
+        /* Styles for the Tabs */
+        .tab-container { display: flex; justify-content: center; gap: 10px; margin-bottom: 30px; flex-wrap: wrap; }
+        .tab-button { padding: 10px 20px; font-size: 16px; cursor: pointer; border: none; background-color: #eee; border-radius: 5px; transition: 0.3s; font-weight: bold; }
+        .tab-button:hover { background-color: #ddd; }
+        .tab-button.active { background-color: #333; color: white; }
+        
+        /* Hide all sections by default */
+        .commodity-section { display: none; }
+        /* Show the active section */
+        .commodity-section.active { display: block; }
+        
+        /* Updated Card Styles for the Date */
+        .card { border-left: 5px solid #333; padding: 15px; margin-bottom: 20px; background: #fafafa; position: relative; padding-bottom: 30px; }
+        .positive { border-color: #28a745; }
+        .negative { border-color: #dc3545; }
+        .neutral { border-color: #ffc107; }
+        .sentiment { font-weight: bold; }
+        
+        /* Date text locked to bottom right */
+        .news-date { position: absolute; bottom: 10px; right: 15px; font-size: 12px; color: #888; font-style: italic; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>🌍 Geopolitical Sentiment Analyzer</h1>
+    <p style="text-align: center; margin-bottom: 30px;">Live AI analysis of global commodity markets.</p>
+
+    <div class="tab-container">
+        {% for commodity_name in all_news_data.keys() %}
+            <button class="tab-button {% if loop.index == 1 %}active{% endif %}" onclick="openTab(event, 'tab_{{ loop.index }}')">
+                {{ commodity_name }}
+            </button>
+        {% endfor %}
+    </div>
+
+    {% for commodity_name, news_list in all_news_data.items() %}
+        <div id="tab_{{ loop.index }}" class="commodity-section {% if loop.index == 1 %}active{% endif %}">
+            <h2 style="color: #444; border-bottom: 2px solid #ddd; padding-bottom: 10px;">{{ commodity_name }} Headlines</h2>
+            
+            {% for news in news_list %}
+                <div class="card {{ news.sentiment | lower }}">
+                    <h3 style="margin-top: 0;">{{ news.headline }}</h3>
+                    <p style="margin-bottom: 5px;"><strong>Source:</strong> {{ news.source }}</p>
+                    
+                    {% if news.description and news.description.strip() %}
+                    <p style="color: #555; font-style: italic; font-size: 14px; line-height: 1.4; margin-top: 5px; margin-bottom: 15px;">
+                        "{{ news.description | striptags | truncate(120) }}"
+                    </p>
+                    {% endif %}
+                    
+                    <p class="sentiment">AI Sentiment: {{ news.sentiment }} ({{ news.confidence }}% Confidence)</p>
+                    <span class="news-date">Published: {{ news.date }}</span>
+                </div>
+            {% endfor %}
+        </div>
+    {% endfor %}
+    
+</div>
+
+<script>
+    function openTab(evt, tabId) {
+        // 1. Hide all commodity sections
+        var sections = document.getElementsByClassName("commodity-section");
+        for (var i = 0; i < sections.length; i++) {
+            sections[i].style.display = "none";
+        }
+        
+        // 2. Remove the "active" dark styling from all buttons
+        var buttons = document.getElementsByClassName("tab-button");
+        for (var i = 0; i < buttons.length; i++) {
+            buttons[i].className = buttons[i].className.replace(" active", "");
+        }
+        
+        // 3. Show the specific section we clicked on
+        document.getElementById(tabId).style.display = "block";
+        
+        // 4. Add the "active" dark styling to the button we just clicked
+        evt.currentTarget.className += " active";
+    }
+</script>
+
+</body>
+</html>
