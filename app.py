@@ -1,21 +1,43 @@
 from flask import Flask, render_template
 import requests
-from transformers import pipeline
 from datetime import datetime, timedelta
 import os 
+import time
 
 app = Flask(__name__)
 
-print("Loading FinBERT AI Model...")
-analyzer = pipeline("sentiment-analysis", model="ProsusAI/finbert")
+# Securely grab both API keys from the Render environment
+NEWS_API_KEY = os.environ.get("NEWS_API_KEY") 
+HF_TOKEN = os.environ.get("HF_TOKEN")
 
-# IMPORTANT: Keep this as os.environ for GitHub/hosting!
-# (If testing locally on your laptop right now, temporarily swap this to: API_KEY = "YOUR_ACTUAL_KEY")
-API_KEY = os.environ.get("NEWS_API_KEY") 
+# The URL for Hugging Face's computers
+HF_API_URL = "https://api-inference.huggingface.co/models/ProsusAI/finbert"
+headers = {"Authorization": f"Bearer {HF_TOKEN}"}
+
+def analyze_sentiment(text):
+    """Sends text to Hugging Face for analysis"""
+    try:
+        response = requests.post(HF_API_URL, headers=headers, json={"inputs": text})
+        result = response.json()
+        
+        # If the model is asleep, HF returns an error. We handle it safely.
+        if isinstance(result, dict) and 'error' in result:
+            return "LOADING", 0.0
+            
+        # Extract the highest scoring sentiment
+        if isinstance(result, list) and len(result) > 0:
+            predictions = result[0]
+            # Sort to find the highest confidence score
+            best_prediction = sorted(predictions, key=lambda x: x['score'], reverse=True)[0]
+            return best_prediction['label'].upper(), round(best_prediction['score'] * 100, 1)
+            
+    except Exception as e:
+        print(f"HF API Error: {e}")
+        
+    return "UNKNOWN", 0.0
 
 @app.route('/')
 def home():
-    # Clean, simple search terms
     commodities = {
         "🛢️ Crude Oil": "Crude Oil market",
         "🪙 Gold": "Gold market",
@@ -23,18 +45,14 @@ def home():
         "🔥 Natural Gas": "Natural Gas market" 
     }
     
-    # Calculate today and 7 days ago
     today = datetime.now()
     last_week = today - timedelta(days=7)
-    
     date_to = today.strftime("%Y-%m-%d")
     date_from = last_week.strftime("%Y-%m-%d")
     
     all_analyzed_news = {}
     
     for commodity_name, search_query in commodities.items():
-        
-        # --- THE FIX: Using a params dictionary for 100% safe URL encoding ---
         base_url = "https://newsapi.org/v2/everything"
         query_parameters = {
             "q": search_query,
@@ -42,23 +60,18 @@ def home():
             "to": date_to,
             "sortBy": "publishedAt",
             "language": "en",
-            "apiKey": API_KEY
+            "apiKey": NEWS_API_KEY
         }
         
-        # The requests library will now safely format the spaces and special characters!
         response = requests.get(base_url, params=query_parameters).json()
-        # ---------------------------------------------------------------------
-        
-        if response.get('status') == 'error':
-            print(f"API ERROR for {commodity_name}: {response.get('message')}")
-        
-        # Grab the top 5 articles
         top_articles = response.get('articles', [])[:5] 
         analyzed_news = []
         
         for article in top_articles:
             headline = article['title']
-            ai_result = analyzer(headline)[0]
+            
+            # Use our new cloud API function!
+            sentiment_label, confidence = analyze_sentiment(headline)
             
             description = article.get('description') or "No detailed description available for this article."
             
@@ -75,8 +88,8 @@ def home():
                 "headline": headline,
                 "description": description,
                 "source": article['source']['name'],
-                "sentiment": ai_result['label'].upper(),
-                "confidence": round(ai_result['score'] * 100, 1),
+                "sentiment": sentiment_label,
+                "confidence": confidence,
                 "date": formatted_date
             })
             
