@@ -2,7 +2,6 @@ from flask import Flask, render_template
 import requests
 from datetime import datetime, timedelta
 import os 
-import time
 
 app = Flask(__name__)
 
@@ -15,24 +14,30 @@ HF_API_URL = "https://api-inference.huggingface.co/models/ProsusAI/finbert"
 headers = {"Authorization": f"Bearer {HF_TOKEN}"}
 
 def analyze_sentiment(text):
-    """Sends text to Hugging Face for analysis"""
+    """Sends text to Hugging Face for analysis with advanced error trapping."""
     try:
         response = requests.post(HF_API_URL, headers=headers, json={"inputs": text})
-        result = response.json()
         
-        # If the model is asleep, HF returns an error. We handle it safely.
-        if isinstance(result, dict) and 'error' in result:
-            return "LOADING", 0.0
+        # NEW: Check if Hugging Face sent an error page instead of JSON
+        if response.status_code != 200:
+            print(f"HF RAW ERROR [{response.status_code}]: {response.text}")
             
-        # Extract the highest scoring sentiment
-        if isinstance(result, list) and len(result) > 0:
+            # 503 means the AI model is currently asleep and booting up
+            if response.status_code == 503:
+                return "LOADING", 0.0
+            return "UNKNOWN", 0.0
+            
+        result = response.json()
+            
+        # Extract the highest scoring sentiment cleanly
+        if isinstance(result, list) and len(result) > 0 and isinstance(result[0], list):
             predictions = result[0]
             # Sort to find the highest confidence score
             best_prediction = sorted(predictions, key=lambda x: x['score'], reverse=True)[0]
             return best_prediction['label'].upper(), round(best_prediction['score'] * 100, 1)
             
     except Exception as e:
-        print(f"HF API Error: {e}")
+        print(f"HF Code Error: {e}")
         
     return "UNKNOWN", 0.0
 
@@ -64,13 +69,18 @@ def home():
         }
         
         response = requests.get(base_url, params=query_parameters).json()
+        
+        # Debug tool if NewsAPI acts up
+        if response.get('status') == 'error':
+            print(f"NewsAPI ERROR for {commodity_name}: {response.get('message')}")
+            
         top_articles = response.get('articles', [])[:5] 
         analyzed_news = []
         
         for article in top_articles:
             headline = article['title']
             
-            # Use our new cloud API function!
+            # Call our upgraded Hugging Face function
             sentiment_label, confidence = analyze_sentiment(headline)
             
             description = article.get('description') or "No detailed description available for this article."
