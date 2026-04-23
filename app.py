@@ -10,7 +10,7 @@ NEWS_API_KEY = os.environ.get("NEWS_API_KEY")
 HF_TOKEN = os.environ.get("HF_TOKEN")
 
 # THE FIX: Direct pipeline URL and explicit Content-Type header
-HF_API_URL = "https://api-inference.huggingface.co/pipeline/text-classification/ProsusAI/finbert"
+HF_API_URL = "https://router.huggingface.co/hf-inference/models/ProsusAI/finbert"
 headers = {
     "Authorization": f"Bearer {HF_TOKEN}",
     "Content-Type": "application/json"
