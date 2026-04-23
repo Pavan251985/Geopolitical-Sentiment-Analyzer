@@ -9,16 +9,19 @@ app = Flask(__name__)
 NEWS_API_KEY = os.environ.get("NEWS_API_KEY") 
 HF_TOKEN = os.environ.get("HF_TOKEN")
 
-# The URL for Hugging Face's computers
-HF_API_URL = "https://api-inference.huggingface.co/models/ProsusAI/finbert"
-headers = {"Authorization": f"Bearer {HF_TOKEN}"}
+# THE FIX: Direct pipeline URL and explicit Content-Type header
+HF_API_URL = "https://api-inference.huggingface.co/pipeline/text-classification/ProsusAI/finbert"
+headers = {
+    "Authorization": f"Bearer {HF_TOKEN}",
+    "Content-Type": "application/json"
+}
 
 def analyze_sentiment(text):
     """Sends text to Hugging Face for analysis with advanced error trapping."""
     try:
         response = requests.post(HF_API_URL, headers=headers, json={"inputs": text})
         
-        # NEW: Check if Hugging Face sent an error page instead of JSON
+        # Check if Hugging Face sent an error page instead of JSON
         if response.status_code != 200:
             print(f"HF RAW ERROR [{response.status_code}]: {response.text}")
             
@@ -30,10 +33,14 @@ def analyze_sentiment(text):
         result = response.json()
             
         # Extract the highest scoring sentiment cleanly
+        # Handles nested lists: [[{'label': 'POSITIVE', 'score': 0.9}]]
         if isinstance(result, list) and len(result) > 0 and isinstance(result[0], list):
             predictions = result[0]
-            # Sort to find the highest confidence score
             best_prediction = sorted(predictions, key=lambda x: x['score'], reverse=True)[0]
+            return best_prediction['label'].upper(), round(best_prediction['score'] * 100, 1)
+        # Handles flat lists: [{'label': 'POSITIVE', 'score': 0.9}]
+        elif isinstance(result, list) and len(result) > 0 and isinstance(result[0], dict):
+            best_prediction = sorted(result, key=lambda x: x['score'], reverse=True)[0]
             return best_prediction['label'].upper(), round(best_prediction['score'] * 100, 1)
             
     except Exception as e:
@@ -97,7 +104,7 @@ def home():
             analyzed_news.append({
                 "headline": headline,
                 "description": description,
-                "source": article['source']['name'],
+                "source": article.get('source', {}).get('name', 'Unknown Source'),
                 "sentiment": sentiment_label,
                 "confidence": confidence,
                 "date": formatted_date
